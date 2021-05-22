@@ -1,0 +1,10 @@
+#ifndef _FII_VERSION_H
+#define _FII_VERSION_H
+
+// values are defined in src/CMakeLists.txt
+#define FII_NAME "${FII_NAME}"
+#define FII_FULLNAME "${FII_FULLNAME}"
+#define FII_VERSION_MAJOR "${FII_VERSION_MAJOR}"
+#define FII_VERSION_MINOR "${FII_VERSION_MINOR}"
+#define FII_VERSION_PATCH "${FII_VERSION_PATCH}"
+#endif

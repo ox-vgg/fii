@@ -1,0 +1,12 @@
+* 22-May-2021 
+  - interest in this project rekindled after @yuki-asano shared his YFCC data
+    subset (6M files with size ~800GB) and his requirement to check if the 
+    {train,val} subset of the ImageNet and Places dataset contains images 
+    that are identical to his YFCC subset.
+  - resuming work with some fresh new ideas
+
+* 06-Dec-2020
+  - initiated project
+  - load image size quickly (without loading the full image data) using a 
+    modified version of the stb_image library [https://github.com/nothings/stb]
+
