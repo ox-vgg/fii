@@ -1,5 +1,8 @@
 # Notes For Developers
 
+## Dependencies
+Requires a compiler (e.g. gcc) that supports C++11.
+
 ## Compile
 ```
 git clone ...               # checkout code from git repository

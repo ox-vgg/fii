@@ -17,6 +17,7 @@ Revision History: see CHANGELOG.txt file
 #include "fii_usage.h"
 #include "fii_util.h"
 #include "fii_image_size.h"
+#include "fii.h"
 
 int main(int argc, char **argv) {
   if(argc == 1 || argc != 2) {
@@ -53,24 +54,70 @@ int main(int argc, char **argv) {
   fii::fs_list_img_files(target_dir, filename_list);
 
   int width, height, nchannel;
+  std::unordered_map<std::string, std::vector<std::size_t> > buckets_of_img_index;
+  std::unordered_map<std::string, std::size_t > buckets_img_count;
   std::string file_path;
   uint32_t tstart = fii::getmillisecs();
+  std::cout << "Grouping " << filename_list.size() << " files based on their size ..."
+            << std::flush;
   for(std::size_t i=0; i<filename_list.size(); ++i) {
     file_path = target_dir + "/" + filename_list[i];
     fii_image_size(file_path.c_str(),
                    &width,
                    &height,
                    &nchannel);
-    std::cout << filename_list[i] << " : "
-              << width << " x " << height << " x " << nchannel
-              << std::endl;
+
+    std::string img_dim_id = fii_img_dim_id(width, height, nchannel);
+    buckets_of_img_index[img_dim_id].push_back(i);
+    buckets_img_count[img_dim_id] += 1;
+  }
+  std::cout << " found " << buckets_img_count.size() << " unique image sizes."
+            << std::endl;
+
+  // find identical image in each bucket
+  std::unordered_map<std::string, std::size_t>::const_iterator itr;
+  for(itr=buckets_img_count.begin(); itr!=buckets_img_count.end(); ++itr) {
+    if(itr->second == 1) {
+      continue; // a bucket with only 1 image cannot contain have identical images
+    } else {
+      std::string bucket_id = itr->first;
+      std::unordered_map<std::size_t, std::set<std::size_t> > image_groups;
+      fii_find_identical_img(filename_list,
+                             buckets_of_img_index[bucket_id],
+                             target_dir,
+                             image_groups);
+      if(image_groups.size()) {
+        std::cout << itr->second << " images of size "
+                  << itr->first << " have "
+                  << image_groups.size() << " identical groups."
+                  << std::endl;
+
+        std::unordered_map<std::size_t, std::set<std::size_t> >::const_iterator gi;
+        for(gi=image_groups.begin(); gi!=image_groups.end(); ++gi) {
+          std::size_t group_id = gi->first;
+          std::set<std::size_t> group_members(gi->second);
+          std::set<std::size_t>::const_iterator si;
+          std::cout << "  [" << group_id << "] ";
+          for(si=group_members.begin(); si!=group_members.end(); ++si) {
+            std::size_t findex = *si;
+            if(si!= group_members.begin()) {
+              std::cout << ", " << filename_list.at(findex);
+            } else {
+              std::cout << filename_list.at(findex);
+            }
+          }
+          std::cout << std::endl;
+        }
+      }
+    }
   }
   uint32_t tend = fii::getmillisecs();
   double elapsed_sec = ((double)(tend - tstart)) / 1000.0;
 
-  double time_per_image = (double) filename_list.size() / elapsed_sec;
+  double time_per_image = elapsed_sec / ((double) filename_list.size());
   std::cout << "processed " << filename_list.size() << " images in "
             << elapsed_sec << "s (" << time_per_image << "s per image)"
             << std::endl;
+
   return 0;
 }
