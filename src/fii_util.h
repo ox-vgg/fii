@@ -33,6 +33,7 @@ namespace fii {
   bool fs_mkdir_if_not_exists(std::string p);
   void fs_list_img_files(std::string target_dir,
                          std::vector<std::string> &fn_list,
+                         std::size_t &discarded_file_count,
                          std::string filename_prefix="");
 
   uint32_t getmillisecs();

@@ -84,8 +84,10 @@ bool fii::fs_mkdir_if_not_exists(std::string p) {
 }
 
 void fii::fs_list_img_files(std::string dirpath,
-                               std::vector<std::string> &imfn_list,
-                               std::string filename_prefix) {
+                            std::vector<std::string> &imfn_list,
+                            std::size_t &discarded_file_count,
+                            std::string filename_prefix) {
+  discarded_file_count = 0;
   std::string imfn_regex(".*(.jpg|.jpeg|.png|.bmp|.pnm|.tif)$");
   std::regex filename_regex(imfn_regex,
                             std::regex_constants::extended |
@@ -109,7 +111,9 @@ void fii::fs_list_img_files(std::string dirpath,
       std::string subdir_name = filename_prefix + name + "/";
       std::string subdirpath = path + "/";
       std::vector<std::string> imfn_sublist;
-      fs_list_img_files(subdirpath, imfn_sublist, subdir_name);
+      std::size_t subdir_discarded_file_count;
+      fs_list_img_files(subdirpath, imfn_sublist, subdir_discarded_file_count, subdir_name);
+      discarded_file_count += subdir_discarded_file_count;
       imfn_list.insert(imfn_list.end(),
                        std::make_move_iterator(imfn_sublist.begin()),
                        std::make_move_iterator(imfn_sublist.end()));
@@ -122,7 +126,8 @@ void fii::fs_list_img_files(std::string dirpath,
           imfn_list.push_back(name_with_prefix);
         }
       } else {
-        std::cout << "discarded: " << name << std::endl;
+        discarded_file_count++;
+        //std::cout << "discarded: " << name << std::endl;
       }
     }
   }

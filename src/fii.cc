@@ -12,6 +12,9 @@ Revision History: see CHANGELOG.txt file
 #include <string>
 #include <unordered_map>
 #include <array>
+#include <sstream>
+
+#include "omp.h"
 
 #include "fii_version.h"
 #include "fii_usage.h"
@@ -49,29 +52,66 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
+  int nthread = omp_get_max_threads();
+  omp_set_num_threads(nthread);
+  std::cout << "using " << nthread << " threads" << std::endl;
+
+  uint32_t t0, t1;
   std::string target_dir(dir_list.at(0));
   std::vector<std::string> filename_list;
-  fii::fs_list_img_files(target_dir, filename_list);
+  std::size_t discarded_file_count;
+  std::cout << "Collecting list of filenames ..." << std::flush;
+  t0 = fii::getmillisecs();
+  fii::fs_list_img_files(target_dir, filename_list, discarded_file_count);
+  t1 = fii::getmillisecs();
+  std::cout << " found " << filename_list.size()
+	    << ", discarded " << discarded_file_count
+	    << " (" << (((double)(t1 - t0)) / 1000.0) << "s)"
+            << std::endl;
 
   int width, height, nchannel;
   std::unordered_map<std::string, std::vector<std::size_t> > buckets_of_img_index;
   std::unordered_map<std::string, std::size_t > buckets_img_count;
-  std::string file_path;
   uint32_t tstart = fii::getmillisecs();
   std::cout << "Grouping " << filename_list.size() << " files based on their size ..."
             << std::flush;
-  for(std::size_t i=0; i<filename_list.size(); ++i) {
-    file_path = target_dir + "/" + filename_list[i];
-    fii_image_size(file_path.c_str(),
-                   &width,
-                   &height,
-                   &nchannel);
+  t0 = fii::getmillisecs();
 
-    std::string img_dim_id = fii_img_dim_id(width, height, nchannel);
+  std::vector<int> filename_width_list(filename_list.size());
+  std::vector<int> filename_height_list(filename_list.size());
+  std::vector<int> filename_nchannel_list(filename_list.size());
+
+  omp_set_num_threads(16);
+#pragma omp parallel
+  {
+    int nt = omp_get_num_threads();
+    int rank = omp_get_thread_num();
+
+    // this thread is taking care of files from index fi0 to fi1
+    std::size_t fi0 = (filename_list.size() * rank) / nt;
+    std::size_t fi1 = (filename_list.size() * (rank + 1)) / nt;
+    std::ostringstream ss;
+    ss << "[" << rank << "] processing files from " << fi0 << " to " << fi1 << std::endl;
+    std::cout << ss.str();
+    for(std::size_t i=fi0; i<fi1; ++i) {
+      std::string file_path = target_dir + "/" + filename_list[i];
+      fii_image_size(file_path.c_str(),
+		     &filename_width_list[i],
+		     &filename_height_list[i],
+		     &filename_nchannel_list[i]);
+    }
+  } // end of omp parallel
+  
+  for(std::size_t i=0; i<filename_list.size(); ++i) {
+    std::string img_dim_id = fii_img_dim_id(filename_width_list[i],
+					    filename_height_list[i],
+					    filename_nchannel_list[i]);
     buckets_of_img_index[img_dim_id].push_back(i);
     buckets_img_count[img_dim_id] += 1;
   }
+  t1 = fii::getmillisecs();
   std::cout << " found " << buckets_img_count.size() << " unique image sizes."
+	    << " (" << (((double)(t1 - t0)) / 1000.0) << "s)"
             << std::endl;
 
   // find identical image in each bucket

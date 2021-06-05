@@ -70,7 +70,11 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list,
   std::size_t feature_count = img_count * img_feature_count;
 
   std::vector<uint8_t> features(feature_count);
-  #pragma omp parallel for
+  int nthread = omp_get_max_threads();
+  omp_set_num_threads(nthread);
+  std::cout << "using " << nthread << " threads" << std::endl;
+
+#pragma omp parallel for
   for(std::size_t i=0; i<img_count; ++i) {
     std::size_t filename_index = filename_index_list.at(i);
     std::string file_path = filename_prefix + "/" + filename_list.at(filename_index);
