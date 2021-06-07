@@ -10,6 +10,10 @@
 #include "stb_image_write.h"
 
 int main(int argc, char **argv) {
+  std::string testname = "fii_image_size_test";
+  fii::init_homedir_and_subdirs();
+  std::string testdir = fii::create_testdir(testname);
+
   std::string filename_template = "fii_image_size_test_tmp_file";
   std::vector<int> image_width_list = {3, 5000, 1};
   std::vector<int> image_height_list = {15, 1, 4652};
@@ -24,7 +28,7 @@ int main(int argc, char **argv) {
         int nchannel = image_nchannel_list.at(ic);
         for(std::size_t it=0; it<image_type_list.size(); ++it) {
           std::string type = image_type_list.at(it);
-          std::string filename = filename_template + "." + type;
+          std::string filename = testdir + filename_template + "." + type;
 
           std::cout << "Testing " << type << " image of size "
                     << width << "x" << height << "x" << nchannel
@@ -77,5 +81,6 @@ int main(int argc, char **argv) {
       }
     }
   }
+  fii::remove_testdir(testname);
   return EXIT_SUCCESS;
 }

@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(BUILD_SHARED_LIBS OFF )
 
 ## export version number in version file
-set (FII_NAME "FII")
+set (FII_NAME "fii")
 set (FII_FULLNAME "Find Identical Images")
 set (FII_VERSION_MAJOR "0")
 set (FII_VERSION_MINOR "0")
@@ -34,7 +34,24 @@ target_link_libraries(
  Threads::Threads OpenMP::OpenMP_CXX
 )
 
+add_executable(fii_inspect_img fii_inspect_img.cc)
+target_link_libraries(
+  fii_inspect_img
+)
+
 ## tests
 ENABLE_TESTING()
 add_executable(fii_image_size_test fii_image_size_test.cc)
+target_link_libraries(
+ fii_image_size_test fii_util
+ Threads::Threads OpenMP::OpenMP_CXX
+)
+
+add_executable(fii_test fii_test.cc)
+target_link_libraries(
+ fii_test fii_util
+ Threads::Threads OpenMP::OpenMP_CXX
+)
+
 add_test(fii_image_size fii_image_size_test)
+add_test(fii fii_test)

@@ -12,7 +12,6 @@ Revision History: see CHANGELOG.txt file
 #include <string>
 #include <unordered_map>
 #include <array>
-#include <sstream>
 
 #include "omp.h"
 
@@ -23,10 +22,12 @@ Revision History: see CHANGELOG.txt file
 #include "fii.h"
 
 int main(int argc, char **argv) {
-  if(argc == 1 || argc != 2) {
-    std::cout << fii::FII_USAGE_STR << std::endl;
+  if(argc == 1) {
+    std::cout << fii::FII_HELP_STR << std::endl;
     return EXIT_FAILURE;
   }
+
+  uint32_t tstart = fii::getmillisecs();
 
   // parse command line arguments
   std::unordered_map<std::string, std::string> options;
@@ -51,113 +52,246 @@ int main(int argc, char **argv) {
               << std::endl;
     return EXIT_FAILURE;
   }
-
-  int nthread = omp_get_max_threads();
-  omp_set_num_threads(nthread);
-  std::cout << "using " << nthread << " threads" << std::endl;
-
-  uint32_t t0, t1;
-  std::string target_dir(dir_list.at(0));
-  std::vector<std::string> filename_list;
-  std::size_t discarded_file_count;
-  std::cout << "Collecting list of filenames ..." << std::flush;
-  t0 = fii::getmillisecs();
-  fii::fs_list_img_files(target_dir, filename_list, discarded_file_count);
-  t1 = fii::getmillisecs();
-  std::cout << " found " << filename_list.size()
-	    << ", discarded " << discarded_file_count
-	    << " (" << (((double)(t1 - t0)) / 1000.0) << "s)"
-            << std::endl;
-
-  int width, height, nchannel;
-  std::unordered_map<std::string, std::vector<std::size_t> > buckets_of_img_index;
-  std::unordered_map<std::string, std::size_t > buckets_img_count;
-  uint32_t tstart = fii::getmillisecs();
-  std::cout << "Grouping " << filename_list.size() << " files based on their size ..."
-            << std::flush;
-  t0 = fii::getmillisecs();
-
-  std::vector<int> filename_width_list(filename_list.size());
-  std::vector<int> filename_height_list(filename_list.size());
-  std::vector<int> filename_nchannel_list(filename_list.size());
-
-  omp_set_num_threads(16);
-#pragma omp parallel
-  {
-    int nt = omp_get_num_threads();
-    int rank = omp_get_thread_num();
-
-    // this thread is taking care of files from index fi0 to fi1
-    std::size_t fi0 = (filename_list.size() * rank) / nt;
-    std::size_t fi1 = (filename_list.size() * (rank + 1)) / nt;
-    std::ostringstream ss;
-    ss << "[" << rank << "] processing files from " << fi0 << " to " << fi1 << std::endl;
-    std::cout << ss.str();
-    for(std::size_t i=fi0; i<fi1; ++i) {
-      std::string file_path = target_dir + "/" + filename_list[i];
-      fii_image_size(file_path.c_str(),
-		     &filename_width_list[i],
-		     &filename_height_list[i],
-		     &filename_nchannel_list[i]);
-    }
-  } // end of omp parallel
-  
-  for(std::size_t i=0; i<filename_list.size(); ++i) {
-    std::string img_dim_id = fii_img_dim_id(filename_width_list[i],
-					    filename_height_list[i],
-					    filename_nchannel_list[i]);
-    buckets_of_img_index[img_dim_id].push_back(i);
-    buckets_img_count[img_dim_id] += 1;
+  if(dir_list.size() > 2) {
+    std::cout << "Only TARGET_DIR and CHECK_DIR should be provided."
+              << std::endl;
+    return EXIT_FAILURE;
   }
-  t1 = fii::getmillisecs();
-  std::cout << " found " << buckets_img_count.size() << " unique image sizes."
-	    << " (" << (((double)(t1 - t0)) / 1000.0) << "s)"
-            << std::endl;
 
-  // find identical image in each bucket
-  std::unordered_map<std::string, std::size_t>::const_iterator itr;
-  for(itr=buckets_img_count.begin(); itr!=buckets_img_count.end(); ++itr) {
-    if(itr->second == 1) {
-      continue; // a bucket with only 1 image cannot contain have identical images
-    } else {
-      std::string bucket_id = itr->first;
-      std::unordered_map<std::size_t, std::set<std::size_t> > image_groups;
-      fii_find_identical_img(filename_list,
-                             buckets_of_img_index[bucket_id],
-                             target_dir,
+  fii::init_homedir_and_subdirs();
+
+  // use all available threads by default
+  int nthread = omp_get_max_threads();
+  if(options.count("nthread")) {
+    nthread = std::atoi(options["nthread"].c_str());
+  }
+  std::cout << "using " << nthread << " threads" << std::endl;
+  omp_set_dynamic(0);
+  omp_set_num_threads(nthread);
+
+  std::string check_dir1(dir_list.at(0));
+  std::string dir1_name = fii::fs_dirname(check_dir1);
+  std::string cache_dir1 = fii::create_cache_dir(check_dir1);
+
+  std::vector<std::string> filename_list1;
+  uint32_t discarded_file_count1;
+  std::unordered_map<std::string, std::vector<uint32_t> > buckets_of_img_index1;
+  std::vector<std::string> bucket_id_list1;
+  fii_group_by_img_dimension(check_dir1,
+			     filename_list1,
+			     buckets_of_img_index1,
+			     bucket_id_list1);
+
+  // save histogram of images grouped by their dimension
+  std::string hist1_fn = cache_dir1 + dir1_name + "-img-dimension-histogram.csv";
+  fii_save_img_dimension_histogram(buckets_of_img_index1, bucket_id_list1, hist1_fn);
+
+  if(dir_list.size() == 2) {
+    // find identical images between check_dir1 and check_dir2
+    std::string check_dir2(dir_list.at(1));  
+    std::string dir2_name = fii::fs_dirname(check_dir2);
+    std::string cache_dir2 = fii::create_cache_dir(check_dir2);
+
+    std::vector<std::string> filename_list2;
+    uint32_t discarded_file_count2;
+    std::unordered_map<std::string, std::vector<uint32_t> > buckets_of_img_index2;
+    std::vector<std::string> bucket_id_list2;
+    fii_group_by_img_dimension(check_dir2,
+			       filename_list2,
+			       buckets_of_img_index2,
+			       bucket_id_list2);
+
+    // save histogram of images grouped by their dimension
+    std::string hist2_fn = cache_dir2 + dir2_name + "-img-dimension-histogram.csv";
+    fii_save_img_dimension_histogram(buckets_of_img_index2, bucket_id_list2, hist2_fn);
+
+    bool is_first_entry = true;
+    bool at_least_one_identical_found = false;
+    std::string json_fn = cache_dir1 + "identical-" + dir1_name + "-" + dir2_name + ".json";
+    std::ofstream json(json_fn);
+    json << "{\"identical\":{";
+    std::cout << "  saving results to " << json_fn << std::endl;
+
+    std::set<std::string> set_of_bucket_id2;
+    for(uint32_t bindex=0; bindex!=bucket_id_list2.size(); ++bindex) {
+      set_of_bucket_id2.insert(bucket_id_list2.at(bindex));
+    }
+    
+    for(uint32_t bindex=0; bindex!=bucket_id_list1.size(); ++bindex) {
+      std::string bucket_id = bucket_id_list1.at(bindex);
+      if(set_of_bucket_id2.count(bucket_id) == 0) {
+	// matching bucket does not exist in CHECK_DIR2
+	// hence, no identical image possible
+	continue;
+      }
+      if(bucket_id == "0x0x0") {
+	// indicates malformed image, discard
+	continue;
+      }
+      
+      std::map<uint32_t, std::set<uint32_t> > image_groups;
+      fii_find_identical_img(filename_list1,
+                             buckets_of_img_index1[bucket_id],
+                             check_dir1,
+			     filename_list2,
+			     buckets_of_img_index2[bucket_id],
+			     check_dir2,
+			     options,
                              image_groups);
       if(image_groups.size()) {
-        std::cout << itr->second << " images of size "
-                  << itr->first << " have "
-                  << image_groups.size() << " identical groups."
-                  << std::endl;
+	at_least_one_identical_found = true;
+	if(is_first_entry) {
+	  is_first_entry = false;
+	} else {
+	  json << ",";
+	}
 
-        std::unordered_map<std::size_t, std::set<std::size_t> >::const_iterator gi;
+	json << "\"" << bucket_id << "\":{";
+        std::cout << bucket_id
+		  << " (" << buckets_of_img_index1[bucket_id].size() << " images)"
+		  << std::endl;
+
+        std::map<uint32_t, std::set<uint32_t> >::const_iterator gi;
         for(gi=image_groups.begin(); gi!=image_groups.end(); ++gi) {
-          std::size_t group_id = gi->first;
-          std::set<std::size_t> group_members(gi->second);
-          std::set<std::size_t>::const_iterator si;
-          std::cout << "  [" << group_id << "] ";
+          uint32_t group_id = gi->first;
+          std::set<uint32_t> group_members(gi->second);
+          std::set<uint32_t>::const_iterator si;
+          std::cout << "  [" << group_id << "] : ";
+	  if(gi!=image_groups.begin()) {
+	    json << ",";
+	  }
+	  json << "\"" << group_id << "\":[";
           for(si=group_members.begin(); si!=group_members.end(); ++si) {
-            std::size_t findex = *si;
-            if(si!= group_members.begin()) {
-              std::cout << ", " << filename_list.at(findex);
-            } else {
-              std::cout << filename_list.at(findex);
-            }
+            uint32_t findex = *si;
+	    std::string filename;
+	    std::string dir_name;
+	    if(findex >= filename_list1.size()) {
+	      // findex is from check_dir2
+	      findex = findex - filename_list1.size();
+	      filename = filename_list2.at(findex);
+	      dir_name = dir2_name + "/";
+	    } else {
+	      // findex is from check_dir1
+	      filename = filename_list1.at(findex);
+	      dir_name = dir1_name + "/";
+	    }
+	    if(si!= group_members.begin()) {
+	      std::cout << ", " << dir_name << filename;
+	      json << ",\"" << dir_name << filename << "\"";
+	    } else {
+	      std::cout << "" << dir_name << filename;
+	      json << "\"" << dir_name << filename << "\"";
+	    }
           }
+	  json << "]";
           std::cout << std::endl;
         }
+	json << "}";
       }
     }
+    json << "}}";
+    json.close();
+    uint32_t tend = fii::getmillisecs();
+    double elapsed_sec = ((double)(tend - tstart)) / 1000.0;
+
+    double time_per_image = elapsed_sec / ((double) filename_list1.size());
+    if(buckets_of_img_index1.count("0x0x0")) {
+      std::cout << "discarded " << buckets_of_img_index1["0x0x0"].size()
+		<< " malformed images in " << check_dir1 << std::endl;
+    }
+    if(buckets_of_img_index2.count("0x0x0")) {
+      std::cout << "discarded " << buckets_of_img_index2["0x0x0"].size()
+		<< " malformed images in " << check_dir2 << std::endl;
+    }
+    
+    std::cout << "processed " << filename_list1.size() << " images in "
+	      << elapsed_sec << "s (" << time_per_image << "s per image)"
+	      << std::endl;
+    if(at_least_one_identical_found) {
+      std::cout << "resulting written to " << json_fn << std::endl;
+    } else {
+      std::cout << "no identical images found" << std::endl;
+    }
+  } else {
+    // find identical images within check_dir1
+    bool is_first_entry = true;
+    bool at_least_one_identical_found = false;
+    std::string json_fn = cache_dir1 + "identical.json";
+    std::ofstream json(json_fn);
+    json << "{\"identical\":{";
+    std::cout << "  saving results to " << json_fn << std::endl;
+    for(uint32_t bindex=0; bindex!=bucket_id_list1.size(); ++bindex) {
+      std::string bucket_id = bucket_id_list1.at(bindex);
+      if(bucket_id == "0x0x0") {
+	// indicates malformed image, discard
+	continue;
+      }
+
+      std::map<uint32_t, std::set<uint32_t> > image_groups;
+      fii_find_identical_img(filename_list1,
+                             buckets_of_img_index1[bucket_id],
+                             check_dir1,
+			     options,
+                             image_groups);
+      if(image_groups.size()) {
+	at_least_one_identical_found = true;
+	if(is_first_entry) {
+	  is_first_entry = false;
+	} else {
+	  json << ",";
+	}
+
+	json << "\"" << bucket_id << "\":{";
+        std::cout << bucket_id
+		  << " (" << buckets_of_img_index1[bucket_id].size() << " images)"
+		  << std::endl;
+
+        std::map<uint32_t, std::set<uint32_t> >::const_iterator gi;
+        for(gi=image_groups.begin(); gi!=image_groups.end(); ++gi) {
+          uint32_t group_id = gi->first;
+          std::set<uint32_t> group_members(gi->second);
+          std::set<uint32_t>::const_iterator si;
+          std::cout << "  [" << group_id << "] : ";
+	  if(gi!=image_groups.begin()) {
+	    json << ",";
+	  }
+	  json << "\"" << group_id << "\":[";
+          for(si=group_members.begin(); si!=group_members.end(); ++si) {
+            uint32_t findex = *si;
+            if(si!= group_members.begin()) {
+              std::cout << ", " << filename_list1.at(findex);
+	      json << ",\"" << filename_list1.at(findex) << "\"";
+            } else {
+              std::cout << filename_list1.at(findex);
+	      json << "\"" << filename_list1.at(findex) << "\"";
+            }
+          }
+	  json << "]";
+          std::cout << std::endl;
+        }
+	json << "}";
+      }   
+    }
+    json << "}}";
+    json.close();
+    uint32_t tend = fii::getmillisecs();
+    double elapsed_sec = ((double)(tend - tstart)) / 1000.0;
+
+    double time_per_image = elapsed_sec / ((double) filename_list1.size());
+
+    if(buckets_of_img_index1.count("0x0x0")) {
+      std::cout << "discarded " << buckets_of_img_index1["0x0x0"].size()
+		<< " malformed images in " << check_dir1 << std::endl;
+    }
+
+    std::cout << "processed " << filename_list1.size() << " images in "
+	      << elapsed_sec << "s (" << time_per_image << "s per image)"
+	      << std::endl;
+    if(at_least_one_identical_found) {
+      std::cout << "resulting written to " << json_fn << std::endl;
+    } else {
+      std::cout << "no identical images found" << std::endl;
+    }
   }
-  uint32_t tend = fii::getmillisecs();
-  double elapsed_sec = ((double)(tend - tstart)) / 1000.0;
-
-  double time_per_image = elapsed_sec / ((double) filename_list.size());
-  std::cout << "processed " << filename_list.size() << " images in "
-            << elapsed_sec << "s (" << time_per_image << "s per image)"
-            << std::endl;
-
-  return 0;
+  return EXIT_SUCCESS;
 }

@@ -21,9 +21,9 @@ void fii_image_size(const char *filename,
                     int *width,
                     int *height,
                     int *nchannel) {
-  *width    = -1;
-  *height   = -1;
-  *nchannel = -1;
+  *width    = 0;
+  *height   = 0;
+  *nchannel = 0;
 
   FILE *f = stbi__fopen(filename, "rb");
   unsigned char *stb_op_result;
