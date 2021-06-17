@@ -34,10 +34,7 @@ target_link_libraries(
  Threads::Threads OpenMP::OpenMP_CXX
 )
 
-add_executable(fii_inspect_img fii_inspect_img.cc)
-target_link_libraries(
-  fii_inspect_img
-)
+#add_executable(fii_inspect_img fii_inspect_img.cc)
 
 ## tests
 ENABLE_TESTING()

@@ -38,6 +38,7 @@ namespace fii {
                          std::string filename_prefix="");
   bool fs_load_file(const std::string fn, std::string& file_content);
   std::string fs_dirname(const std::string p);
+  std::string fs_file_extension(const std::string p);
 
   // homedir and subdirs
   std::string homedir();

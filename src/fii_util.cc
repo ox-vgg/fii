@@ -31,6 +31,9 @@ void fii::parse_command_line_args(int argc,
       }
       options[key] = val;
     } else {
+      if(arg.back() != '/') {
+        arg = arg + "/";
+      }
       dir_list.push_back(arg);
     }
   }
@@ -160,7 +163,20 @@ bool fii::fs_load_file(const std::string fn, std::string& file_content) {
 std::string fii::fs_dirname(const std::string p) {
   std::vector<std::string> tokens;
   split(p, '/', tokens);
-  return tokens.at(tokens.size() - 1);
+  if(tokens.size()) {
+    return tokens.at(tokens.size() - 1);
+  } else {
+    return "";
+  }
+}
+
+std::string fii::fs_file_extension(const std::string p) {
+  std::size_t last_dot_index = p.rfind(".");
+  if(last_dot_index == std::string::npos) {
+    return "";
+  } else {
+    return p.substr(last_dot_index+1);
+  }
 }
 
 //

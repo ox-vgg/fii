@@ -23,7 +23,7 @@ int create_dir_with_identical_img(const std::string dir1,
   std::vector<int> image_nchannel_list = {3};
   std::vector<std::string> image_type_list = {"jpg", "png", "bmp"};
   std::vector<std::string> outdir_list = {dir1, dir2};
-  
+
   std::random_device rd;  //Will be used to obtain a seed for the random number engine
   std::mt19937 rand_gen(rd()); //Standard mersenne_twister_engine seeded with rd()
   std::uniform_int_distribution<> rand_pixel(0, 255);
@@ -47,7 +47,7 @@ int create_dir_with_identical_img(const std::string dir1,
 	      image_data[px] = rand_pixel(rand_gen);
 	    }
 	    rand_pixel_data_id++;
-	  
+
 	    int quality = 100;
 	    int success;
 	    std::ostringstream ss;
@@ -98,10 +98,10 @@ int create_dir_with_identical_img(const std::string dir1,
 int main(int argc, char **argv) {
   int success = 0;
   fii::init_homedir_and_subdirs();
-  
+
   std::string dir1 = fii::create_testdir("fii_test_dir1");
   std::string dir2 = fii::create_testdir("fii_test_dir2");
-  
+
   std::vector<std::string> filename_list1;
   std::vector<std::string> filename_list2;
   success = create_dir_with_identical_img(dir1, dir2,
@@ -111,51 +111,94 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  // test single dir
   std::ostringstream ss;
+  std::string cmd;
+  std::string json_fn;
+
+  // test single dir
   ss << "./fii " << dir1 << std::endl;
-  std::string cmd(ss.str());
+  cmd = ss.str();
+  std::cout << "====[ Test command: " << cmd << std::endl;
   success = system(cmd.c_str());
   if(success != EXIT_SUCCESS) {
     std::cerr << "failed to execute the following command"
 	      << std::endl << cmd << std::endl;
     return EXIT_FAILURE;
   }
-  std::string json_fn = fii::dir_to_cachedir(dir1) + "identical.json";
-  std::string json;
-  if(fii::fs_load_file(json_fn, json)) {
-    if(json != "{\"identical\":{}}") {
-      std::cerr << "unexpected content in " << json_fn << std::endl;
-      return EXIT_FAILURE;
-    }
-  } else {
-    std::cerr << "missing file " << json_fn << std::endl;
+  std::string dir1_name = fii::fs_dirname(dir1);
+  json_fn = fii::dir_to_cachedir(dir1) + dir1_name + "-identical.json";
+  if(fii::fs_file_exists(json_fn)) {
+    std::cerr << "Unexpected presence of file " << json_fn << std::endl;
     return EXIT_FAILURE;
   }
   fii::remove_cache(dir1);
 
-  // test dir1 against dir1
+  // test dir1 against dir1 (all identical images)
   ss.clear();
   ss.str("");
   ss << "./fii " << dir1 << " " << dir1 << std::endl;
   cmd = ss.str();
+  std::cout << "====[ Test command: " << cmd << std::endl;
   success = system(cmd.c_str());
   if(success != EXIT_SUCCESS) {
     std::cerr << "failed to execute the following command"
 	      << std::endl << cmd << std::endl;
     return EXIT_FAILURE;
   }
-  json_fn = fii::dir_to_cachedir(dir1) + "identical-fii_test_dir1-fii_test_dir1.json";
-  if(fii::fs_load_file(json_fn, json)) {    
-    // todo: check and match contents of json
-    if(json.size() != 5377) {
-      std::cerr << "unexpect content in " << json_fn << std::endl;
-      return EXIT_FAILURE;      
-    }
-  } else {
+
+  json_fn = fii::dir_to_cachedir(dir1) + "fii_test_dir1-fii_test_dir1-identical.json";
+  std::string json;
+  if(! fii::fs_load_file(json_fn, json)) {
     std::cerr << "missing file " << json_fn << std::endl;
     return EXIT_FAILURE;
   }
+
+  std::string csv_fn = fii::dir_to_cachedir(dir1) + "fii_test_dir1-fii_test_dir1-identical.csv";
+  std::string csv;
+  if(! fii::fs_load_file(csv_fn, csv)) {
+    std::cerr << "missing file " << csv_fn << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  std::string html_fn = fii::dir_to_cachedir(dir1) + "fii_test_dir1-fii_test_dir1-identical.html";
+  std::string html;
+  if(! fii::fs_load_file(html_fn, html)) {
+    std::cerr << "missing file " << html_fn << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  if(json.size() != 5377) {
+    std::cerr << "unexpected content in " << json_fn << std::endl;
+    return EXIT_FAILURE;
+  }
+  if(csv.size() != 4930) {
+    std::cerr << "unexpected content in " << csv_fn << std::endl;
+    return EXIT_FAILURE;
+  }
+  if(html.size() != 9626) {
+    std::cerr << "unexpected content in " << html_fn << std::endl;
+    return EXIT_FAILURE;
+  }
+  fii::remove_cache(dir1);
+
+  // test dir1 against dir2 (0 identical images)
+  ss.clear();
+  ss.str("");
+  ss << "./fii " << dir1 << " " << dir2 << std::endl;
+  cmd = ss.str();
+  std::cout << "====[ Test command: " << cmd << std::endl;
+  success = system(cmd.c_str());
+  if(success != EXIT_SUCCESS) {
+    std::cerr << "failed to execute the following command"
+	      << std::endl << cmd << std::endl;
+    return EXIT_FAILURE;
+  }
+  json_fn = fii::dir_to_cachedir(dir1) + "fii_test_dir1-fii_test_dir2-identical.json";
+  if(fii::fs_file_exists(json_fn)) {
+    std::cerr << "Unexpect presence of file " << json_fn << std::endl;
+    return EXIT_FAILURE;
+  }
+  fii::remove_cache(dir1);
 
   // cleanup
   fii::remove_testdir("fii_test_dir1");

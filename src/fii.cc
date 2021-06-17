@@ -1,17 +1,16 @@
 /*
-A command line tool to find all identical images (i.e. exact duplicate images
-that have same pixel values) in a folder.
+  A command line tool to find all identical images (i.e. exact duplicate images
+  that have same pixel values) in a folder.
 
-Author: Abhishek Dutta <http://abhishekdutta.org>
-Date:   06-Dec-2020
+  Author: Abhishek Dutta <http://abhishekdutta.org>
+  Date:   06-Dec-2020
 
-Revision History: see CHANGELOG.txt file
+  Revision History: see CHANGELOG.txt file
 */
 
 #include <iostream>
 #include <string>
 #include <unordered_map>
-#include <array>
 
 #include "omp.h"
 
@@ -19,6 +18,7 @@ Revision History: see CHANGELOG.txt file
 #include "fii_usage.h"
 #include "fii_util.h"
 #include "fii_image_size.h"
+#include "fii_export.h"
 #include "fii.h"
 
 int main(int argc, char **argv) {
@@ -78,17 +78,17 @@ int main(int argc, char **argv) {
   std::unordered_map<std::string, std::vector<uint32_t> > buckets_of_img_index1;
   std::vector<std::string> bucket_id_list1;
   fii_group_by_img_dimension(check_dir1,
-			     filename_list1,
-			     buckets_of_img_index1,
-			     bucket_id_list1);
+                             filename_list1,
+                             buckets_of_img_index1,
+                             bucket_id_list1);
 
   // save histogram of images grouped by their dimension
-  std::string hist1_fn = cache_dir1 + dir1_name + "-img-dimension-histogram.csv";
-  fii_save_img_dimension_histogram(buckets_of_img_index1, bucket_id_list1, hist1_fn);
+  //std::string hist1_fn = cache_dir1 + dir1_name + "-img-dimension-histogram.csv";
+  //fii_save_img_dimension_histogram(buckets_of_img_index1, bucket_id_list1, hist1_fn);
 
   if(dir_list.size() == 2) {
     // find identical images between check_dir1 and check_dir2
-    std::string check_dir2(dir_list.at(1));  
+    std::string check_dir2(dir_list.at(1));
     std::string dir2_name = fii::fs_dirname(check_dir2);
     std::string cache_dir2 = fii::create_cache_dir(check_dir2);
 
@@ -97,200 +97,178 @@ int main(int argc, char **argv) {
     std::unordered_map<std::string, std::vector<uint32_t> > buckets_of_img_index2;
     std::vector<std::string> bucket_id_list2;
     fii_group_by_img_dimension(check_dir2,
-			       filename_list2,
-			       buckets_of_img_index2,
-			       bucket_id_list2);
+                               filename_list2,
+                               buckets_of_img_index2,
+                               bucket_id_list2);
 
     // save histogram of images grouped by their dimension
-    std::string hist2_fn = cache_dir2 + dir2_name + "-img-dimension-histogram.csv";
-    fii_save_img_dimension_histogram(buckets_of_img_index2, bucket_id_list2, hist2_fn);
+    //std::string hist2_fn = cache_dir2 + dir2_name + "-img-dimension-histogram.csv";
+    //fii_save_img_dimension_histogram(buckets_of_img_index2, bucket_id_list2, hist2_fn);
 
-    bool is_first_entry = true;
-    bool at_least_one_identical_found = false;
-    std::string json_fn = cache_dir1 + "identical-" + dir1_name + "-" + dir2_name + ".json";
-    std::ofstream json(json_fn);
-    json << "{\"identical\":{";
-    std::cout << "  saving results to " << json_fn << std::endl;
-
+    uint32_t identical_img_count = 0;
     std::set<std::string> set_of_bucket_id2;
     for(uint32_t bindex=0; bindex!=bucket_id_list2.size(); ++bindex) {
       set_of_bucket_id2.insert(bucket_id_list2.at(bindex));
     }
-    
+
+    std::unordered_map<std::string, std::vector<std::set<uint32_t> > > image_groups;
     for(uint32_t bindex=0; bindex!=bucket_id_list1.size(); ++bindex) {
       std::string bucket_id = bucket_id_list1.at(bindex);
       if(set_of_bucket_id2.count(bucket_id) == 0) {
-	// matching bucket does not exist in CHECK_DIR2
-	// hence, no identical image possible
-	continue;
+        // matching bucket does not exist in CHECK_DIR2
+        // hence, no identical image possible
+        continue;
       }
       if(bucket_id == "0x0x0") {
-	// indicates malformed image, discard
-	continue;
+        // indicates malformed image, discard
+        continue;
       }
-      
-      std::map<uint32_t, std::set<uint32_t> > image_groups;
+
+      std::vector<std::set<uint32_t> > bucket_image_groups;
       fii_find_identical_img(filename_list1,
                              buckets_of_img_index1[bucket_id],
                              check_dir1,
-			     filename_list2,
-			     buckets_of_img_index2[bucket_id],
-			     check_dir2,
-			     options,
-                             image_groups);
-      if(image_groups.size()) {
-	at_least_one_identical_found = true;
-	if(is_first_entry) {
-	  is_first_entry = false;
-	} else {
-	  json << ",";
-	}
+                             filename_list2,
+                             buckets_of_img_index2[bucket_id],
+                             check_dir2,
+                             options,
+                             bucket_image_groups);
+      if(bucket_image_groups.size()) {
+        image_groups[bucket_id] = bucket_image_groups;
 
-	json << "\"" << bucket_id << "\":{";
         std::cout << bucket_id
-		  << " (" << buckets_of_img_index1[bucket_id].size() << " images)"
-		  << std::endl;
+                  << " (" << buckets_of_img_index1[bucket_id].size() << " images)"
+                  << std::endl;
 
-        std::map<uint32_t, std::set<uint32_t> >::const_iterator gi;
-        for(gi=image_groups.begin(); gi!=image_groups.end(); ++gi) {
-          uint32_t group_id = gi->first;
-          std::set<uint32_t> group_members(gi->second);
+        for(std::size_t group_id=0; group_id<bucket_image_groups.size(); ++group_id) {
+          std::set<uint32_t> group_members(bucket_image_groups.at(group_id));
           std::set<uint32_t>::const_iterator si;
           std::cout << "  [" << group_id << "] : ";
-	  if(gi!=image_groups.begin()) {
-	    json << ",";
-	  }
-	  json << "\"" << group_id << "\":[";
           for(si=group_members.begin(); si!=group_members.end(); ++si) {
             uint32_t findex = *si;
-	    std::string filename;
-	    std::string dir_name;
-	    if(findex >= filename_list1.size()) {
-	      // findex is from check_dir2
-	      findex = findex - filename_list1.size();
-	      filename = filename_list2.at(findex);
-	      dir_name = dir2_name + "/";
-	    } else {
-	      // findex is from check_dir1
-	      filename = filename_list1.at(findex);
-	      dir_name = dir1_name + "/";
-	    }
-	    if(si!= group_members.begin()) {
-	      std::cout << ", " << dir_name << filename;
-	      json << ",\"" << dir_name << filename << "\"";
-	    } else {
-	      std::cout << "" << dir_name << filename;
-	      json << "\"" << dir_name << filename << "\"";
-	    }
+            std::string filename;
+            std::string dir_name;
+            if(findex >= filename_list1.size()) {
+              // findex is from check_dir2
+              findex = findex - filename_list1.size();
+              filename = filename_list2.at(findex);
+              dir_name = dir2_name + "/";
+            } else {
+              // findex is from check_dir1
+              filename = filename_list1.at(findex);
+              dir_name = dir1_name + "/";
+            }
+            if(si!= group_members.begin()) {
+              std::cout << ", " << dir_name << filename;
+            } else {
+              std::cout << "" << dir_name << filename;
+            }
           }
-	  json << "]";
+
+          identical_img_count += group_members.size() - 1;
           std::cout << std::endl;
         }
-	json << "}";
       }
     }
-    json << "}}";
-    json.close();
+    std::cout << std::endl;
+
     uint32_t tend = fii::getmillisecs();
     double elapsed_sec = ((double)(tend - tstart)) / 1000.0;
 
-    double time_per_image = elapsed_sec / ((double) filename_list1.size());
+    double time_per_image = elapsed_sec / ((double) (filename_list1.size()+filename_list2.size()));
     if(buckets_of_img_index1.count("0x0x0")) {
-      std::cout << "discarded " << buckets_of_img_index1["0x0x0"].size()
-		<< " malformed images in " << check_dir1 << std::endl;
+      std::cout << "Discarded " << buckets_of_img_index1["0x0x0"].size()
+                << " malformed images in " << check_dir1 << std::endl;
     }
     if(buckets_of_img_index2.count("0x0x0")) {
-      std::cout << "discarded " << buckets_of_img_index2["0x0x0"].size()
-		<< " malformed images in " << check_dir2 << std::endl;
+      std::cout << "Discarded " << buckets_of_img_index2["0x0x0"].size()
+                << " malformed images in " << check_dir2 << std::endl;
     }
-    
-    std::cout << "processed " << filename_list1.size() << " images in "
-	      << elapsed_sec << "s (" << time_per_image << "s per image)"
-	      << std::endl;
-    if(at_least_one_identical_found) {
-      std::cout << "resulting written to " << json_fn << std::endl;
+
+    std::cout << "Processed two folders with " << filename_list1.size()
+              << " and " << filename_list2.size() << " images in "
+              << elapsed_sec << "s (" << time_per_image << "s per image)."
+              << std::endl;
+    if(image_groups.size()) {
+      std::cout << "Found " << identical_img_count << " identical images."
+                << std::endl;
+      std::string export_dir = cache_dir1;
+      if(options.count("export")) {
+        export_dir = options.at("export");
+      }
+      fii_export_all(image_groups, export_dir, filename_list1, check_dir1, filename_list2, check_dir2);
     } else {
-      std::cout << "no identical images found" << std::endl;
+      std::cout << "Identical images not found." << std::endl;
     }
   } else {
     // find identical images within check_dir1
     bool is_first_entry = true;
-    bool at_least_one_identical_found = false;
-    std::string json_fn = cache_dir1 + "identical.json";
-    std::ofstream json(json_fn);
-    json << "{\"identical\":{";
-    std::cout << "  saving results to " << json_fn << std::endl;
+    uint32_t identical_img_count = 0;
+    std::unordered_map<std::string, std::vector<std::set<uint32_t> > > image_groups;
     for(uint32_t bindex=0; bindex!=bucket_id_list1.size(); ++bindex) {
       std::string bucket_id = bucket_id_list1.at(bindex);
       if(bucket_id == "0x0x0") {
-	// indicates malformed image, discard
-	continue;
+        // indicates malformed image, discard
+        continue;
       }
 
-      std::map<uint32_t, std::set<uint32_t> > image_groups;
+      std::vector<std::set<uint32_t> > bucket_image_groups;
       fii_find_identical_img(filename_list1,
                              buckets_of_img_index1[bucket_id],
                              check_dir1,
-			     options,
-                             image_groups);
-      if(image_groups.size()) {
-	at_least_one_identical_found = true;
-	if(is_first_entry) {
-	  is_first_entry = false;
-	} else {
-	  json << ",";
-	}
+                             options,
+                             bucket_image_groups);
+      if(bucket_image_groups.size()) {
+        image_groups[bucket_id] = bucket_image_groups;
 
-	json << "\"" << bucket_id << "\":{";
         std::cout << bucket_id
-		  << " (" << buckets_of_img_index1[bucket_id].size() << " images)"
-		  << std::endl;
+                  << " (" << buckets_of_img_index1[bucket_id].size() << " images)"
+                  << std::endl;
 
-        std::map<uint32_t, std::set<uint32_t> >::const_iterator gi;
-        for(gi=image_groups.begin(); gi!=image_groups.end(); ++gi) {
-          uint32_t group_id = gi->first;
-          std::set<uint32_t> group_members(gi->second);
+        std::vector<std::set<uint32_t> >::const_iterator gi;
+        for(std::size_t group_id=0; group_id!=bucket_image_groups.size(); ++group_id) {
+          std::set<uint32_t> group_members(bucket_image_groups.at(group_id));
           std::set<uint32_t>::const_iterator si;
           std::cout << "  [" << group_id << "] : ";
-	  if(gi!=image_groups.begin()) {
-	    json << ",";
-	  }
-	  json << "\"" << group_id << "\":[";
           for(si=group_members.begin(); si!=group_members.end(); ++si) {
             uint32_t findex = *si;
             if(si!= group_members.begin()) {
               std::cout << ", " << filename_list1.at(findex);
-	      json << ",\"" << filename_list1.at(findex) << "\"";
             } else {
               std::cout << filename_list1.at(findex);
-	      json << "\"" << filename_list1.at(findex) << "\"";
             }
           }
-	  json << "]";
           std::cout << std::endl;
+
+          identical_img_count += group_members.size() - 1;
         }
-	json << "}";
-      }   
+      }
     }
-    json << "}}";
-    json.close();
+    std::cout << std::endl;
     uint32_t tend = fii::getmillisecs();
     double elapsed_sec = ((double)(tend - tstart)) / 1000.0;
 
     double time_per_image = elapsed_sec / ((double) filename_list1.size());
 
     if(buckets_of_img_index1.count("0x0x0")) {
-      std::cout << "discarded " << buckets_of_img_index1["0x0x0"].size()
-		<< " malformed images in " << check_dir1 << std::endl;
+      std::cout << "Discarded " << buckets_of_img_index1["0x0x0"].size()
+                << " malformed images in " << check_dir1 << std::endl;
     }
 
-    std::cout << "processed " << filename_list1.size() << " images in "
-	      << elapsed_sec << "s (" << time_per_image << "s per image)"
-	      << std::endl;
-    if(at_least_one_identical_found) {
-      std::cout << "resulting written to " << json_fn << std::endl;
+    std::cout << "Processed " << filename_list1.size() << " images in "
+              << elapsed_sec << "s (" << time_per_image << "s per image)."
+              << std::endl;
+
+    if(image_groups.size()) {
+      std::cout << "Found " << identical_img_count << " identical images."
+                << std::endl;
+      std::string export_dir = cache_dir1;
+      if(options.count("export")) {
+        export_dir = options.at("export");
+      }
+      fii_export_all(image_groups, export_dir, filename_list1, check_dir1);
     } else {
-      std::cout << "no identical images found" << std::endl;
+      std::cout << "Identical images not found." << std::endl;
     }
   }
   return EXIT_SUCCESS;

@@ -1,10 +1,10 @@
 /*
-find identical images based on analysis of sparse set of pixel values.
+  find identical images based on analysis of sparse set of pixel values.
 
-Author: Abhishek Dutta <http://abhishekdutta.org>
+  Author: Abhishek Dutta <http://abhishekdutta.org>
 
-Revision History:
-04-Jun-2021 : image_feature = pixel values at 8 feature points around image center
+  Revision History:
+  04-Jun-2021 : image_feature = pixel values at 8 feature points around image center
 
 */
 
@@ -15,7 +15,6 @@ Revision History:
 #include <cmath>
 #include <set>
 #include <unordered_map>
-#include <map>
 #include <vector>
 #include <iomanip>
 
@@ -26,7 +25,7 @@ Revision History:
 #endif
 
 // a sparse sample of pixel values are compared
-// if W and H are the image width and image height respectively 
+// if W and H are the image width and image height respectively
 // then pixel value features are extracted from the following pixel locations
 // for x in FII_IMG_FEATURE_LOC_SCALE .* W
 //   for y in FII_IMG_FEATURE_LOC_SCALE .* H
@@ -53,7 +52,7 @@ void fii_compute_img_feature(const std::string filename,
     // malformed image, discard
     return;
   }
-  
+
   std::vector<uint32_t> xp, yp;
   xp.reserve(FII_IMG_FEATURE_LOC_SCALE.size());
   yp.reserve(FII_IMG_FEATURE_LOC_SCALE.size());
@@ -75,11 +74,11 @@ void fii_compute_img_feature(const std::string filename,
 void fii_find_identical_img(const std::vector<std::string> &filename_list1,
                             const std::vector<uint32_t> &filename_index_list1,
                             const std::string filename_prefix1,
-			    const std::vector<std::string> &filename_list2,
+                            const std::vector<std::string> &filename_list2,
                             const std::vector<uint32_t> &filename_index_list2,
                             const std::string filename_prefix2,
-			    const std::unordered_map<std::string, std::string> &options,
-                            std::map<uint32_t, std::set<uint32_t> > &image_groups) {
+                            const std::unordered_map<std::string, std::string> &options,
+                            std::vector<std::set<uint32_t> > &image_groups) {
   uint32_t img_count1 = filename_index_list1.size();
   uint32_t img_count2 = filename_index_list2.size();
   if(img_count2 == 0 || img_count1 == 0) {
@@ -167,7 +166,6 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
 
   // perform depth first search to find all the connected components
   std::unordered_map<uint32_t, std::set<uint32_t> >::const_iterator itr;
-  uint32_t set_id = 0;
   for(itr=match_graph.begin(); itr!=match_graph.end(); ++itr) {
     uint32_t query_id = itr->first;
 
@@ -190,18 +188,15 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
       continue; // discard empty components
     }
     //visited_nodes.push_back(query_id); // add query node
-    image_groups[set_id] = visited_nodes;
-
-    // move to next set
-    set_id = set_id + 1;
+    image_groups.push_back(visited_nodes);
   }
 }
 
 void fii_find_identical_img(const std::vector<std::string> &filename_list,
                             const std::vector<uint32_t> &filename_index_list,
                             const std::string filename_prefix,
-			    const std::unordered_map<std::string, std::string> &options,
-                            std::map<uint32_t, std::set<uint32_t> > &image_groups) {
+                            const std::unordered_map<std::string, std::string> &options,
+                            std::vector<std::set<uint32_t> > &image_groups) {
   uint32_t img_count = filename_index_list.size();
   if(img_count < 2) {
     return; // identical images not possible
@@ -274,7 +269,6 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list,
 
   // perform depth first search to find all the connected components
   std::unordered_map<uint32_t, std::set<uint32_t> >::const_iterator itr;
-  uint32_t set_id = 0;
   for(itr=match_graph.begin(); itr!=match_graph.end(); ++itr) {
     uint32_t query_id = itr->first;
 
@@ -297,10 +291,7 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list,
       continue; // discard empty components
     }
     //visited_nodes.push_back(query_id); // add query node
-    image_groups[set_id] = visited_nodes;
-
-    // move to next set
-    set_id = set_id + 1;
+    image_groups.push_back(visited_nodes);
   }
 }
 
@@ -335,33 +326,33 @@ std::string fii_img_dim_id(const int &width,
 }
 
 bool fii_compare_bucket_by_value(std::pair<std::string, uint32_t>& a,
-				 std::pair<std::string, uint32_t>& b ) {
-  return a.second > b.second;  
+                                 std::pair<std::string, uint32_t>& b ) {
+  return a.second > b.second;
 }
 
 void fii_group_by_img_dimension(const std::string check_dir,
-				std::vector<std::string> &filename_list,
-				std::unordered_map<std::string, std::vector<uint32_t> > &buckets_of_img_index,
-				std::vector<std::string> &sorted_bucket_id_list,
-				bool verbose=true) {
+                                std::vector<std::string> &filename_list,
+                                std::unordered_map<std::string, std::vector<uint32_t> > &buckets_of_img_index,
+                                std::vector<std::string> &sorted_bucket_id_list,
+                                bool verbose=true) {
   uint32_t t0, t1; // for recording elapsed time
   if(verbose) {
     std::cout << "Processing " << check_dir << std::endl;
   }
   t0 = fii::getmillisecs();
   uint32_t discarded_file_count;
-  std::cout << "  collecting filenames: " << std::flush;
+  std::cout << "  collecting filenames : " << std::flush;
   fii::fs_list_img_files(check_dir, filename_list, discarded_file_count);
   t1 = fii::getmillisecs();
   if(verbose) {
     std::cout << "found " << filename_list.size()
-	      << " images";
+              << " images";
     if(discarded_file_count) {
       std::cout << ", discarded " << discarded_file_count
-		<< " non-image files";
+                << " non-image files";
     }
     std::cout << " (" << (((double)(t1 - t0)) / 1000.0) << "s)"
-	      << std::endl;
+              << std::endl;
   }
 
   int width, height, nchannel;
@@ -386,9 +377,9 @@ void fii_group_by_img_dimension(const std::string check_dir,
     for(uint32_t i=fi0; i<fi1; ++i) {
       std::string file_path = check_dir + "/" + filename_list[i];
       fii_image_size(file_path.c_str(),
-		     &filename_width_list[i],
-		     &filename_height_list[i],
-		     &filename_nchannel_list[i]);
+                     &filename_width_list[i],
+                     &filename_height_list[i],
+                     &filename_nchannel_list[i]);
     }
   } // end of omp parallel
 
@@ -396,28 +387,28 @@ void fii_group_by_img_dimension(const std::string check_dir,
   std::unordered_map<std::string, uint32_t> buckets_img_count;
   for(uint32_t i=0; i<filename_list.size(); ++i) {
     std::string img_dim_id = fii_img_dim_id(filename_width_list[i],
-					    filename_height_list[i],
-					    filename_nchannel_list[i]);
+                                            filename_height_list[i],
+                                            filename_nchannel_list[i]);
     buckets_of_img_index[img_dim_id].push_back(i);
     buckets_img_count[img_dim_id] += 1;
   }
   t1 = fii::getmillisecs();
   if(verbose) {
     std::cout << "found " << buckets_img_count.size() << " unique image dimensions."
-	      << " (" << (((double)(t1 - t0)) / 1000.0) << "s)"
-	      << std::endl;
-    
+              << " (" << (((double)(t1 - t0)) / 1000.0) << "s)"
+              << std::endl;
+
     // show a histogram of image dimensions
     std::vector<std::pair<std::string, uint32_t> > sorted_img_dim_list;
     std::unordered_map<std::string, uint32_t>::const_iterator it;
     for(it=buckets_img_count.begin(); it!=buckets_img_count.end(); ++it) {
       if(it->second > 1) { // discard groups with only 1 image
-	sorted_img_dim_list.push_back(*it);
+        sorted_img_dim_list.push_back(*it);
       }
     }
     std::sort(sorted_img_dim_list.begin(),
-	      sorted_img_dim_list.end(),
-	      fii_compare_bucket_by_value);
+              sorted_img_dim_list.end(),
+              fii_compare_bucket_by_value);
 
     // bucket_id_list is sorted in ascending order
     std::vector<std::pair<std::string, uint32_t> >::reverse_iterator rit2;
@@ -427,23 +418,23 @@ void fii_group_by_img_dimension(const std::string check_dir,
 
     // bucket_img_count histogram is sorted in descending order
     std::ostringstream line1, line2, head;
-    head  << "  +";
-    line1 << "  |";
-    line2 << "  |";
+    head  << "  +-------------+";
+    line1 << "  | Image Dim.  |";
+    line2 << "  | Image Count |";
     std::vector<std::pair<std::string, uint32_t> >::const_iterator it2;
     for(it2=sorted_img_dim_list.begin(); it2!=sorted_img_dim_list.end(); ++it2) {
       if(it2!=sorted_img_dim_list.begin()) {
-	head  << "------------+";
-	line1 << " |";
-	line2 << " |";
+        head  << "------------+";
+        line1 << " |";
+        line2 << " |";
       }
       line1 << std::setw(11) << it2->first;
       line2 << std::setw(11) << it2->second;
-      if(line1.str().size() > 60) {
-	head  << "------------+";
-	line1 << " |" << std::setw(11) << "...";
-	line2 << " |" << std::setw(11) << "...";
-	break;
+      if(line1.str().size() > 50) {
+        head  << "------------+";
+        line1 << " |" << std::setw(11) << "...";
+        line2 << " |" << std::setw(11) << "...";
+        break;
       }
     }
     head  << "------------+" << std::endl;
@@ -454,8 +445,8 @@ void fii_group_by_img_dimension(const std::string check_dir,
 }
 
 void fii_save_img_dimension_histogram(std::unordered_map<std::string, std::vector<uint32_t> > &buckets_of_img_index,
-				      std::vector<std::string> &bucket_id_list,
-				      std::string hist_fn) {
+                                      std::vector<std::string> &bucket_id_list,
+                                      std::string hist_fn) {
   std::ofstream hist(hist_fn);
   hist << "image_dimension,image_count" << std::endl;
   for(std::size_t i=0; i<bucket_id_list.size(); ++i) {
