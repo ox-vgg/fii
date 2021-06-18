@@ -11,9 +11,9 @@ checks for identical copies within the CHECK_DIR1 folder.
 
 The following options are available:
 
---export[=DIR]   : export results (JSON, CSV, HTML) to this folder
---nthread[=N]    : use only N threads instead of all available threads
---check-every-px : check every pixel to prevent any false positive (slower)
+--export[=DIR]     : export results (JSON, CSV, HTML) to this folder
+--nthread[=N]      : use only N threads instead of all available threads
+--check-all-pixels : check every pixel to prevent any false positive (slower)
 
 Here are some example commands:
 a) check if the YFCC dataset has images identical to ImageNet dataset

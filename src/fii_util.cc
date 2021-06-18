@@ -137,6 +137,43 @@ void fii::fs_list_img_files(const std::string dirpath,
   closedir(dfd);
 }
 
+void fii::fs_list_all_files(const std::string dirpath,
+                            std::vector<std::string> &fn_list,
+                            std::string filename_prefix) {
+  struct dirent *dp;
+  DIR *dfd = opendir(dirpath.c_str());
+  if(!dfd) {
+    std::cout << "fs_list_img_files(): cannot open dir: "
+              << dirpath << std::endl;
+    return;
+  }
+
+  while( (dp = readdir(dfd)) != NULL ) {
+    std::string name(dp->d_name);
+    if(name=="." || name=="..") {
+      continue;
+    }
+    std::string path = dirpath + name;
+    if(fs_is_dir(path)) {
+      std::string subdir_name = filename_prefix + name + "/";
+      std::string subdirpath = path + "/";
+      std::vector<std::string> fn_sublist;
+      fs_list_all_files(subdirpath, fn_sublist, subdir_name);
+      fn_list.insert(fn_list.end(),
+                     std::make_move_iterator(fn_sublist.begin()),
+                     std::make_move_iterator(fn_sublist.end()));
+    } else {
+      if(filename_prefix.empty()) {
+        fn_list.push_back(name);
+      } else {
+        std::string name_with_prefix = filename_prefix + name;
+        fn_list.push_back(name_with_prefix);
+      }
+    }
+  }
+  closedir(dfd);
+}
+
 bool fii::fs_load_file(const std::string fn, std::string& file_content) {
   if( !fs_file_exists(fn) ) {
     std::cout << "file does not exist [" << fn << "]" << std::endl;

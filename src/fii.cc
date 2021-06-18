@@ -65,9 +65,14 @@ int main(int argc, char **argv) {
   if(options.count("nthread")) {
     nthread = std::atoi(options["nthread"].c_str());
   }
-  std::cout << "using " << nthread << " threads" << std::endl;
+  std::cout << "Using " << nthread << " threads" << std::endl;
   omp_set_dynamic(0);
   omp_set_num_threads(nthread);
+
+  if(options.count("check-all-pixels")) {
+    std::cout << "Performing exhaustive comparison of every pixels "
+              << "(this is slow, requires more memory)" << std::endl;
+  }
 
   std::string check_dir1(dir_list.at(0));
   std::string dir1_name = fii::fs_dirname(check_dir1);
@@ -76,10 +81,12 @@ int main(int argc, char **argv) {
   std::vector<std::string> filename_list1;
   uint32_t discarded_file_count1;
   std::unordered_map<std::string, std::vector<uint32_t> > buckets_of_img_index1;
+  std::unordered_map<std::string, std::vector<uint32_t> > bucket_img_dim_list1;
   std::vector<std::string> bucket_id_list1;
   fii_group_by_img_dimension(check_dir1,
                              filename_list1,
                              buckets_of_img_index1,
+                             bucket_img_dim_list1,
                              bucket_id_list1);
 
   // save histogram of images grouped by their dimension
@@ -95,10 +102,12 @@ int main(int argc, char **argv) {
     std::vector<std::string> filename_list2;
     uint32_t discarded_file_count2;
     std::unordered_map<std::string, std::vector<uint32_t> > buckets_of_img_index2;
+    std::unordered_map<std::string, std::vector<uint32_t> > bucket_img_dim_list2;
     std::vector<std::string> bucket_id_list2;
     fii_group_by_img_dimension(check_dir2,
                                filename_list2,
                                buckets_of_img_index2,
+                               bucket_img_dim_list2,
                                bucket_id_list2);
 
     // save histogram of images grouped by their dimension
@@ -131,6 +140,7 @@ int main(int argc, char **argv) {
                              filename_list2,
                              buckets_of_img_index2[bucket_id],
                              check_dir2,
+                             bucket_img_dim_list1[bucket_id],
                              options,
                              bucket_image_groups);
       if(bucket_image_groups.size()) {
@@ -216,6 +226,7 @@ int main(int argc, char **argv) {
       fii_find_identical_img(filename_list1,
                              buckets_of_img_index1[bucket_id],
                              check_dir1,
+                             bucket_img_dim_list1[bucket_id],
                              options,
                              bucket_image_groups);
       if(bucket_image_groups.size()) {

@@ -40,12 +40,13 @@ void fii_depth_first_search(const std::unordered_map<uint32_t, std::set<uint32_t
 void fii_compute_img_feature(const std::string filename,
                              const uint32_t feature_start_index,
                              const uint32_t feature_count,
-                             std::vector<uint8_t> &features) {
+                             std::vector<uint8_t> &features,
+                             const bool check_all_pixels=false) {
   // feature_end_index = feature_start_index + feature_count
   // fill in features[feature_start_index : feature_end_index]
   int width, height, nchannel;
   // @todo: we can improve speed here by only loading the
-  // location of sparse set of pixel locations only
+  // location of sparse set of pixel locations
   // e.g. features = stbi_load_sparse(...)
   unsigned char *img_data = stbi_load(filename.c_str(), &width, &height, &nchannel, 0);
   if(!img_data) {
@@ -53,19 +54,26 @@ void fii_compute_img_feature(const std::string filename,
     return;
   }
 
-  std::vector<uint32_t> xp, yp;
-  xp.reserve(FII_IMG_FEATURE_LOC_SCALE.size());
-  yp.reserve(FII_IMG_FEATURE_LOC_SCALE.size());
-  for(uint32_t i=0; i<FII_IMG_FEATURE_LOC_SCALE.size(); ++i) {
-    xp.push_back( uint32_t(width  * FII_IMG_FEATURE_LOC_SCALE.at(i)) );
-    yp.push_back( uint32_t(height * FII_IMG_FEATURE_LOC_SCALE.at(i)) );
-  }
+  if(check_all_pixels) {
+    uint32_t npixel = width * height * nchannel;
+    for(uint32_t feature_index=0; feature_index<npixel; ++feature_index) {
+      features.at(feature_start_index + feature_index) = img_data[feature_index];
+    }
+  } else {
+    std::vector<uint32_t> xp, yp;
+    xp.reserve(FII_IMG_FEATURE_LOC_SCALE.size());
+    yp.reserve(FII_IMG_FEATURE_LOC_SCALE.size());
+    for(uint32_t i=0; i<FII_IMG_FEATURE_LOC_SCALE.size(); ++i) {
+      xp.push_back( uint32_t(width  * FII_IMG_FEATURE_LOC_SCALE.at(i)) );
+      yp.push_back( uint32_t(height * FII_IMG_FEATURE_LOC_SCALE.at(i)) );
+    }
 
-  uint32_t feature_index = 0;
-  for(uint32_t xi=0; xi<xp.size(); ++xi) {
-    for(uint32_t yi=0; yi<yp.size(); ++yi) {
-      features.at(feature_start_index + feature_index) = img_data[ yp[yi]*width*nchannel + xp[xi]*nchannel ];
-      feature_index++;
+    uint32_t feature_index = 0;
+    for(uint32_t xi=0; xi<xp.size(); ++xi) {
+      for(uint32_t yi=0; yi<yp.size(); ++yi) {
+        features.at(feature_start_index + feature_index) = img_data[ yp[yi]*width*nchannel + xp[xi]*nchannel ];
+        feature_index++;
+      }
     }
   }
   stbi_image_free(img_data);
@@ -77,17 +85,36 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
                             const std::vector<std::string> &filename_list2,
                             const std::vector<uint32_t> &filename_index_list2,
                             const std::string filename_prefix2,
+                            const std::vector<uint32_t> &img_dim,
                             const std::unordered_map<std::string, std::string> &options,
                             std::vector<std::set<uint32_t> > &image_groups) {
+  image_groups.clear();
+
   uint32_t img_count1 = filename_index_list1.size();
   uint32_t img_count2 = filename_index_list2.size();
   if(img_count2 == 0 || img_count1 == 0) {
     return; // identical images not possible
   }
 
-  image_groups.clear();
-  const uint32_t FII_IMG_FEATURE_LOC_SCALE_COUNT = FII_IMG_FEATURE_LOC_SCALE.size();
-  const uint32_t img_feature_count = FII_IMG_FEATURE_LOC_SCALE_COUNT * FII_IMG_FEATURE_LOC_SCALE_COUNT;
+  uint32_t feature_count1 = img_count1;
+  uint32_t feature_count2 = img_count2;
+  uint32_t img_feature_count = 1;
+  bool check_all_pixels = false;
+  if(options.count("check-all-pixels")) {
+    // run exhaustive comparison of every pixel
+    // this is not necessary most of the time
+    check_all_pixels = true;
+    for(std::size_t i=0; i<img_dim.size(); ++i) {
+      feature_count1 = feature_count1 * img_dim[i];
+      feature_count2 = feature_count2 * img_dim[i];
+      img_feature_count = img_feature_count * img_dim[i];
+    }
+  } else {
+    const uint32_t FII_IMG_FEATURE_LOC_SCALE_COUNT = FII_IMG_FEATURE_LOC_SCALE.size();
+    img_feature_count = FII_IMG_FEATURE_LOC_SCALE_COUNT * FII_IMG_FEATURE_LOC_SCALE_COUNT;
+    feature_count1 = feature_count1 * img_feature_count;
+    feature_count2 = feature_count2 * img_feature_count;
+  }
 
   // use all available threads by default
   int nthread = omp_get_max_threads();
@@ -98,7 +125,6 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
   omp_set_num_threads(nthread);
 
   // extract features from filename_index_list1
-  uint32_t feature_count1 = img_count1 * img_feature_count;
   std::vector<uint8_t> features1(feature_count1);
 #pragma omp parallel for
   for(uint32_t i=0; i<img_count1; ++i) {
@@ -109,11 +135,11 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
     fii_compute_img_feature(file_path1,
                             img_feature_start_index,
                             img_feature_count,
-                            features1);
+                            features1,
+                            check_all_pixels);
   }
 
   // extract features from filename_index_list1
-  uint32_t feature_count2 = img_count2 * img_feature_count;
   std::vector<uint8_t> features2(feature_count2);
 #pragma omp parallel for
   for(uint32_t i=0; i<img_count2; ++i) {
@@ -124,7 +150,8 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
     fii_compute_img_feature(file_path2,
                             img_feature_start_index,
                             img_feature_count,
-                            features2);
+                            features2,
+                            check_all_pixels);
   }
 
   // compute image graph between each image
@@ -195,18 +222,30 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
 void fii_find_identical_img(const std::vector<std::string> &filename_list,
                             const std::vector<uint32_t> &filename_index_list,
                             const std::string filename_prefix,
+                            const std::vector<uint32_t> &img_dim,
                             const std::unordered_map<std::string, std::string> &options,
                             std::vector<std::set<uint32_t> > &image_groups) {
+  image_groups.clear();
+
   uint32_t img_count = filename_index_list.size();
   if(img_count < 2) {
     return; // identical images not possible
   }
 
-  image_groups.clear();
-
-  const uint32_t FII_IMG_FEATURE_LOC_SCALE_COUNT = FII_IMG_FEATURE_LOC_SCALE.size();
-  const uint32_t img_feature_count = FII_IMG_FEATURE_LOC_SCALE_COUNT * FII_IMG_FEATURE_LOC_SCALE_COUNT;
-  uint32_t feature_count = img_count * img_feature_count;
+  uint32_t img_feature_count = 1;
+  uint32_t feature_count = img_count;
+  bool check_all_pixels = false;
+  if(options.count("check-all-pixels")) {
+    check_all_pixels = true;
+    for(std::size_t i=0; i<img_dim.size(); ++i) {
+      feature_count = feature_count * img_dim[i];
+      img_feature_count = img_feature_count * img_dim[i];
+    }
+  } else {
+    const uint32_t FII_IMG_FEATURE_LOC_SCALE_COUNT = FII_IMG_FEATURE_LOC_SCALE.size();
+    img_feature_count = FII_IMG_FEATURE_LOC_SCALE_COUNT * FII_IMG_FEATURE_LOC_SCALE_COUNT;
+    feature_count = img_count * img_feature_count;
+  }
 
   std::vector<uint8_t> features(feature_count);
 
@@ -228,7 +267,8 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list,
     fii_compute_img_feature(file_path,
                             img_feature_start_index,
                             img_feature_count,
-                            features);
+                            features,
+                            check_all_pixels);
   }
 
   // compute image graph between each image
@@ -333,6 +373,7 @@ bool fii_compare_bucket_by_value(std::pair<std::string, uint32_t>& a,
 void fii_group_by_img_dimension(const std::string check_dir,
                                 std::vector<std::string> &filename_list,
                                 std::unordered_map<std::string, std::vector<uint32_t> > &buckets_of_img_index,
+                                std::unordered_map<std::string, std::vector<uint32_t> > &bucket_dim_list,
                                 std::vector<std::string> &sorted_bucket_id_list,
                                 bool verbose=true) {
   uint32_t t0, t1; // for recording elapsed time
@@ -389,6 +430,12 @@ void fii_group_by_img_dimension(const std::string check_dir,
     std::string img_dim_id = fii_img_dim_id(filename_width_list[i],
                                             filename_height_list[i],
                                             filename_nchannel_list[i]);
+    if(bucket_dim_list.count(img_dim_id) == 0) {
+      bucket_dim_list[img_dim_id] = std::vector<uint32_t>(3);
+      bucket_dim_list[img_dim_id][0] = filename_width_list[i];
+      bucket_dim_list[img_dim_id][1] = filename_height_list[i];
+      bucket_dim_list[img_dim_id][2] = filename_nchannel_list[i];
+    }
     buckets_of_img_index[img_dim_id].push_back(i);
     buckets_img_count[img_dim_id] += 1;
   }

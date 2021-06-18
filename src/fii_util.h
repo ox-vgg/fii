@@ -36,6 +36,10 @@ namespace fii {
                          std::vector<std::string> &fn_list,
                          uint32_t &discarded_file_count,
                          std::string filename_prefix="");
+  void fs_list_all_files(const std::string target_dir,
+                         std::vector<std::string> &fn_list,
+                         std::string filename_prefix="");
+
   bool fs_load_file(const std::string fn, std::string& file_content);
   std::string fs_dirname(const std::string p);
   std::string fs_file_extension(const std::string p);
@@ -45,14 +49,14 @@ namespace fii {
   std::string cachedir();
   std::string testdir();
   bool init_homedir_and_subdirs();
-  
+
   // cache
   std::string create_cache_dir(const std::string target_dir);
   std::string dir_to_cachedir(const std::string target_dir);
   bool remove_cache(const std::string target_dir);
   bool clear_all_cache();
   bool clear_all_cache_subfolders(std::string dirpath);
-  
+
   // tests
   std::string create_testdir(const std::string test_name);
   bool remove_testdir(const std::string test_name);
