@@ -287,10 +287,11 @@ int main(int argc, char **argv) {
   }
 
   // test on a single folder containing 3 identical images
+  // we cannot check HTML output as it contains absolute path
+  // which can differ between machines
   std::unordered_map<std::string, uint32_t> dir3_3_identical = {
                                                                 {"fii_test_dir3-identical.json",  532},
                                                                 {"fii_test_dir3-identical.csv",   454},
-                                                                {"fii_test_dir3-identical.html", 4708}
   };
   success = test_fii_on_dir("dir3-3-identical",
                             dir3,
@@ -316,7 +317,6 @@ int main(int argc, char **argv) {
                             {
                              {"fii_test_dir1-fii_test_dir1-identical.json", 5377},
                              {"fii_test_dir1-fii_test_dir1-identical.csv",  4930},
-                             {"fii_test_dir1-fii_test_dir1-identical.html", 9626}
                             },
                             dir1);
   if(success != EXIT_SUCCESS) {
@@ -340,7 +340,6 @@ int main(int argc, char **argv) {
                             {
                              {"fii_test_dir2-fii_test_dir2-identical.json", 5415},
                              {"fii_test_dir2-fii_test_dir2-identical.csv",  4968},
-                             {"fii_test_dir2-fii_test_dir2-identical.html", 9664}
                             },
                             dir2);
   if(success != EXIT_SUCCESS) {
