@@ -1,11 +1,20 @@
-* 22-May-2021 
+* 1.0.0 (21-June-2021)
+  - find identical images (fii) in one folder or find common images in two folders
+  - faster processing using two pass approach where pass 1 only compares a set 
+    of 225 sparse pixel locations and pass 2 compares all pixel locations for 
+    potential identical images flagged in pass 1.
+  - uses multiple threads
+  - export results in HTML, CSV, JSON formats
+  - published identical image statistics for public images dataset
+    https://www.robots.ox.ac.uk/~vgg/software/fii/
+  - added self contained code to test various functionalities of fii code
   - interest in this project rekindled after @yuki-asano shared his YFCC data
     subset (6M files with size ~800GB) and his requirement to check if the 
     {train,val} subset of the ImageNet and Places dataset contains images 
-    that are identical to his YFCC subset.
+    that are identical to his YFCC subset (22-May-2021).
   - resuming work with some fresh new ideas
 
-* 06-Dec-2020
+* 0.0.1 (06-Dec-2020)
   - initiated project
   - load image size quickly (without loading the full image data) using a 
     modified version of the stb_image library [https://github.com/nothings/stb]
