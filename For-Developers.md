@@ -5,13 +5,10 @@ Requires a compiler (e.g. gcc) that supports C++11.
 
 ## Compile
 ```
-git clone ...               # checkout code from git repository
-cd find-identical-img/
-mkdir build && cd build
-cmake ../src
-make
-make test
-./fii ../data/test/
+git clone git@gitlab.com:vgg/fii.git
+cd fii && cmake -B build src/
+make -C build -j
+make test -C build -j           # run tests (optional)
 ```
 
 ## Check for Memory Leaks
