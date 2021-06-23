@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
   std::unordered_map<std::string, std::string> options;
   std::vector<std::string> dir_list;
   fii::parse_command_line_args(argc, argv, options, dir_list);
-
+  
   if(options.count("help")) {
     std::cout << fii::FII_HELP_STR << std::endl;
     return EXIT_FAILURE;
@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
 
   if(options.count("check-all-pixels")) {
     std::cout << "Performing exhaustive comparison of every pixels "
-              << "(this is slow, requires more memory)" << std::endl;
+              << "(this is slower and requires more memory)" << std::endl;
   }
 
   std::string check_dir1(dir_list.at(0));
@@ -134,6 +134,16 @@ int main(int argc, char **argv) {
       }
 
       std::vector<std::set<uint32_t> > bucket_image_groups;
+      // if check_all_pixels is requested, use the following two pass approach:
+      // Pass 1. first compute identical images using sparse features
+      // Pass 2. find identical images found in step [1] using exhaustive pixelwise search
+      // this avoids running exhaustive pixelwise search on all images
+      bool check_all_pixels = false;
+      if(options.count("check-all-pixels")) {
+	check_all_pixels = true;
+	options.erase("check-all-pixels");
+      }
+      // Pass 1 
       fii_find_identical_img(filename_list1,
                              buckets_of_img_index1[bucket_id],
                              check_dir1,
@@ -143,6 +153,39 @@ int main(int argc, char **argv) {
                              bucket_img_dim_list1[bucket_id],
                              options,
                              bucket_image_groups);
+      if(check_all_pixels) {
+	// Pass 2
+	std::vector<uint32_t> filename_index_list1_pass2;
+	std::vector<uint32_t> filename_index_list2_pass2;
+        std::vector<std::set<uint32_t> >::const_iterator gi;
+        for(std::size_t group_id=0; group_id<bucket_image_groups.size(); ++group_id) {
+          std::set<uint32_t> group_members(bucket_image_groups.at(group_id));
+          std::set<uint32_t>::const_iterator si;
+          for(si=group_members.begin(); si!=group_members.end(); ++si) {
+            uint32_t findex = *si;
+            if(findex >= filename_list1.size()) {
+              // findex is from check_dir2
+              findex = findex - filename_list1.size();
+	      filename_index_list2_pass2.push_back(findex);
+            } else {
+              // findex is from check_dir1
+	      filename_index_list1_pass2.push_back(findex);
+	    }
+          }
+        }
+	bucket_image_groups.clear();
+	options["check-all-pixels"] = "";
+	fii_find_identical_img(filename_list1,
+			       filename_index_list1_pass2,
+			       check_dir1,
+			       filename_list2,
+			       filename_index_list2_pass2,
+			       check_dir2,
+			       bucket_img_dim_list1[bucket_id],
+			       options,
+			       bucket_image_groups);
+      }
+      
       if(bucket_image_groups.size()) {
         image_groups[bucket_id] = bucket_image_groups;
 
@@ -223,17 +266,49 @@ int main(int argc, char **argv) {
       }
 
       std::vector<std::set<uint32_t> > bucket_image_groups;
+
+      // if check_all_pixels is requested, use the following two pass approach:
+      // Pass 1. first compute identical images using sparse features
+      // Pass 2. find identical images found in step [1] using exhaustive pixelwise search
+      // this avoids running exhaustive pixelwise search on all images
+      bool check_all_pixels = false;
+      if(options.count("check-all-pixels")) {
+	check_all_pixels = true;
+	options.erase("check-all-pixels");
+      }
+      // Pass 1 
       fii_find_identical_img(filename_list1,
                              buckets_of_img_index1[bucket_id],
                              check_dir1,
                              bucket_img_dim_list1[bucket_id],
                              options,
                              bucket_image_groups);
+      if(check_all_pixels) {
+	// Pass 2
+	std::vector<uint32_t> filename_index_list1_pass2;
+        std::vector<std::set<uint32_t> >::const_iterator gi;
+        for(std::size_t group_id=0; group_id!=bucket_image_groups.size(); ++group_id) {
+          std::set<uint32_t> group_members(bucket_image_groups.at(group_id));
+          std::set<uint32_t>::const_iterator si;
+          for(si=group_members.begin(); si!=group_members.end(); ++si) {
+	    filename_index_list1_pass2.push_back(*si);
+	  }
+	}
+	bucket_image_groups.clear();
+	options["check-all-pixels"] = "";
+	fii_find_identical_img(filename_list1,
+			       filename_index_list1_pass2,
+			       check_dir1,
+			       bucket_img_dim_list1[bucket_id],
+			       options,
+			       bucket_image_groups);
+      }
+      
       if(bucket_image_groups.size()) {
         image_groups[bucket_id] = bucket_image_groups;
 
-        std::cout << bucket_id
-                  << " (" << buckets_of_img_index1[bucket_id].size() << " images)"
+        std::cout << "Listing identical images of size " << bucket_id
+                  << " (checked " << buckets_of_img_index1[bucket_id].size() << " images)"
                   << std::endl;
 
         std::vector<std::set<uint32_t> >::const_iterator gi;
@@ -266,20 +341,27 @@ int main(int argc, char **argv) {
                 << " malformed images in " << check_dir1 << std::endl;
     }
 
-    std::cout << "Processed " << filename_list1.size() << " images in "
-              << elapsed_sec << "s (" << time_per_image << "s per image)."
-              << std::endl;
-
     if(image_groups.size()) {
-      std::cout << "Found " << identical_img_count << " identical images."
-                << std::endl;
+      // @todo: remove non-portable Linux console colour code
+      std::cout << "\033[0;31m"
+		<< "Processed " << filename_list1.size() << " images and found "
+		<< identical_img_count << " identical images. ("
+		<< elapsed_sec << "s)"
+		<< "\033[0m"
+		<< std::endl;
       std::string export_dir = cache_dir1;
       if(options.count("export")) {
         export_dir = options.at("export");
       }
       fii_export_all(image_groups, export_dir, filename_list1, check_dir1);
     } else {
-      std::cout << "Identical images not found." << std::endl;
+      // @todo: remove non-portable Linux console colour code
+      std::cout << "\033[0;32m"
+		<< "Processed " << filename_list1.size() << " images and found "
+		<< "no identical images. ("
+		<< elapsed_sec << "s)"
+		<< "\033[0m"
+		<< std::endl;
     }
   }
   return EXIT_SUCCESS;

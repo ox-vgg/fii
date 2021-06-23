@@ -38,8 +38,8 @@ void fii_depth_first_search(const std::unordered_map<uint32_t, std::set<uint32_t
                             std::set<uint32_t> &visited_nodes);
 
 void fii_compute_img_feature(const std::string filename,
-                             const uint32_t feature_start_index,
-                             const uint32_t feature_count,
+                             const uint64_t feature_start_index,
+                             const uint64_t feature_count,
                              std::vector<uint8_t> &features,
                              const bool check_all_pixels=false) {
   // feature_end_index = feature_start_index + feature_count
@@ -68,7 +68,7 @@ void fii_compute_img_feature(const std::string filename,
       yp.push_back( uint32_t(height * FII_IMG_FEATURE_LOC_SCALE.at(i)) );
     }
 
-    uint32_t feature_index = 0;
+    uint64_t feature_index = 0;
     for(uint32_t xi=0; xi<xp.size(); ++xi) {
       for(uint32_t yi=0; yi<yp.size(); ++yi) {
         features.at(feature_start_index + feature_index) = img_data[ yp[yi]*width*nchannel + xp[xi]*nchannel ];
@@ -96,8 +96,8 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
     return; // identical images not possible
   }
 
-  uint32_t feature_count1 = img_count1;
-  uint32_t feature_count2 = img_count2;
+  uint64_t feature_count1 = img_count1;
+  uint64_t feature_count2 = img_count2;
   uint32_t img_feature_count = 1;
   bool check_all_pixels = false;
   if(options.count("check-all-pixels")) {
@@ -131,7 +131,7 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
     uint32_t filename_index1 = filename_index_list1.at(i);
     std::string file_path1 = filename_prefix1 + filename_list1.at(filename_index1);
 
-    uint32_t img_feature_start_index = i * img_feature_count;
+    uint64_t img_feature_start_index = i * img_feature_count;
     fii_compute_img_feature(file_path1,
                             img_feature_start_index,
                             img_feature_count,
@@ -146,7 +146,7 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list1,
     uint32_t filename_index2 = filename_index_list2.at(i);
     std::string file_path2 = filename_prefix2 + filename_list2.at(filename_index2);
 
-    uint32_t img_feature_start_index = i * img_feature_count;
+    uint64_t img_feature_start_index = i * img_feature_count;
     fii_compute_img_feature(file_path2,
                             img_feature_start_index,
                             img_feature_count,
@@ -233,7 +233,7 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list,
   }
 
   uint32_t img_feature_count = 1;
-  uint32_t feature_count = img_count;
+  uint64_t feature_count = img_count;
   bool check_all_pixels = false;
   if(options.count("check-all-pixels")) {
     check_all_pixels = true;
@@ -262,7 +262,7 @@ void fii_find_identical_img(const std::vector<std::string> &filename_list,
     uint32_t filename_index = filename_index_list.at(i);
     std::string file_path = filename_prefix + filename_list.at(filename_index);
 
-    uint32_t img_feature_start_index = i * img_feature_count;
+    uint64_t img_feature_start_index = i * img_feature_count;
 
     fii_compute_img_feature(file_path,
                             img_feature_start_index,
@@ -464,30 +464,32 @@ void fii_group_by_img_dimension(const std::string check_dir,
     }
 
     // bucket_img_count histogram is sorted in descending order
-    std::ostringstream line1, line2, head;
-    head  << "  +-------------+";
-    line1 << "  | Image Dim.  |";
-    line2 << "  | Image Count |";
-    std::vector<std::pair<std::string, uint32_t> >::const_iterator it2;
-    for(it2=sorted_img_dim_list.begin(); it2!=sorted_img_dim_list.end(); ++it2) {
-      if(it2!=sorted_img_dim_list.begin()) {
-        head  << "------------+";
-        line1 << " |";
-        line2 << " |";
+    if(sorted_img_dim_list.size()) {
+      std::ostringstream line1, line2, head;
+      head  << "  +-------------+";
+      line1 << "  | Image Dim.  |";
+      line2 << "  | Image Count |";
+      std::vector<std::pair<std::string, uint32_t> >::const_iterator it2;
+      for(it2=sorted_img_dim_list.begin(); it2!=sorted_img_dim_list.end(); ++it2) {
+	if(it2!=sorted_img_dim_list.begin()) {
+	  head  << "------------+";
+	  line1 << " |";
+	  line2 << " |";
+	}
+	line1 << std::setw(11) << it2->first;
+	line2 << std::setw(11) << it2->second;
+	if(line1.str().size() > 50) {
+	  head  << "------------+";
+	  line1 << " |" << std::setw(11) << "...";
+	  line2 << " |" << std::setw(11) << "...";
+	  break;
+	}
       }
-      line1 << std::setw(11) << it2->first;
-      line2 << std::setw(11) << it2->second;
-      if(line1.str().size() > 50) {
-        head  << "------------+";
-        line1 << " |" << std::setw(11) << "...";
-        line2 << " |" << std::setw(11) << "...";
-        break;
-      }
+      head  << "------------+" << std::endl;
+      line1 << " |" << std::endl;
+      line2 << " |" << std::endl;
+      std::cout << head.str() << line1.str() << head.str() << line2.str() << head.str();
     }
-    head  << "------------+" << std::endl;
-    line1 << " |" << std::endl;
-    line2 << " |" << std::endl;
-    std::cout << head.str() << line1.str() << head.str() << line2.str() << head.str();
   }
 }
 

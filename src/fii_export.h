@@ -228,7 +228,7 @@ void fii_export_html(const std::unordered_map<std::string, std::vector<std::set<
        << "<html lang=\"en\">\n"
        << "<head>\n"
        << "<meta charset=\"UTF-8\">\n"
-       << "<title>VGG Image Annotator</title>\n"
+       << "<title>Identical Images</title>\n"
        << "<meta name=\"author\" content=\"Find Identical Images (FII) - https://www.robots.ox.ac.uk/~vgg/software/fii/\">\n"
        << "<style>.fii_toolbar button { margin:0 2em; } .set{ position:relative; display:inline-block; border:1px solid #cccccc; margin:2em 1em; padding:2em; font-size:small; } .set > .set_id{ position:absolute; top:0; left:0; padding:0.2em 0.5em; background-color:black; color:white; } .set figure{ display:inline-block; margin:0.2em 0.3em; } .set figure img{ max-width:300px; max-height:300px; }</style>\n";
   html << "</head>\n<body>";
@@ -258,6 +258,78 @@ void fii_export_html(const std::unordered_map<std::string, std::vector<std::set<
   html.close();
 }
 
+void fii_export_filelist(const std::unordered_map<std::string, std::vector<std::set<uint32_t> > > &image_groups,
+			 const std::string filelist_fn,
+			 const std::vector<std::string> &filename_list1,
+			 const std::string check_dir1,
+			 const std::vector<std::string> &filename_list2=std::vector<std::string>(),
+			 const std::string check_dir2="") {
+  std::ofstream filelist(filelist_fn);
+  std::string dir1_name = fii::fs_dirname(check_dir1);
+  std::string dir2_name = fii::fs_dirname(check_dir2);
+  std::unordered_map<std::string, std::vector<std::set<uint32_t> > >::const_iterator bi;
+  for(bi=image_groups.begin(); bi!=image_groups.end(); ++bi) {
+    std::vector<std::set<uint32_t> >::const_iterator gi;
+    for(std::size_t group_id=0; group_id!=bi->second.size(); ++group_id) {
+      std::set<uint32_t> group_members(bi->second.at(group_id));
+      std::set<uint32_t>::const_iterator si;
+      for(si=group_members.begin(); si!=group_members.end(); ++si) {
+        uint32_t findex = *si;
+        std::string filename;
+        std::string dir_name;
+        if(findex >= filename_list1.size()) {
+          // findex is from check_dir2
+          findex = findex - filename_list1.size();
+          filename = filename_list2.at(findex);
+          dir_name = dir2_name;
+        } else {
+          // findex is from check_dir1
+          filename = filename_list1.at(findex);
+          dir_name = dir1_name;
+        }
+	filelist << dir_name << "/" << filename << std::endl;
+      }
+    }
+  }
+  filelist.close();
+}
+
+void fii_export_delete_filelist(const std::unordered_map<std::string, std::vector<std::set<uint32_t> > > &image_groups,
+				const std::string filelist_fn,
+				const std::vector<std::string> &filename_list1,
+				const std::string check_dir1,
+				const std::vector<std::string> &filename_list2=std::vector<std::string>(),
+				const std::string check_dir2="") {
+  std::ofstream filelist(filelist_fn);
+  std::string dir1_name = fii::fs_dirname(check_dir1);
+  std::string dir2_name = fii::fs_dirname(check_dir2);
+  std::unordered_map<std::string, std::vector<std::set<uint32_t> > >::const_iterator bi;
+  for(bi=image_groups.begin(); bi!=image_groups.end(); ++bi) {
+    std::vector<std::set<uint32_t> >::const_iterator gi;
+    for(std::size_t group_id=0; group_id!=bi->second.size(); ++group_id) {
+      std::set<uint32_t> group_members(bi->second.at(group_id));
+      std::set<uint32_t>::const_iterator si=group_members.begin();
+      for(++si; si!=group_members.end(); ++si) {
+        uint32_t findex = *si;
+        std::string filename;
+        std::string dir_name;
+        if(findex >= filename_list1.size()) {
+          // findex is from check_dir2
+          findex = findex - filename_list1.size();
+          filename = filename_list2.at(findex);
+          dir_name = dir2_name;
+        } else {
+          // findex is from check_dir1
+          filename = filename_list1.at(findex);
+          dir_name = dir1_name;
+        }
+	filelist << dir_name << "/" << filename << std::endl;
+      }
+    }
+  }
+  filelist.close();
+}
+
 void fii_export_all(const std::unordered_map<std::string, std::vector<std::set<uint32_t> > > &image_groups,
                     std::string export_dir,
                     const std::vector<std::string> &filename_list1,
@@ -275,11 +347,12 @@ void fii_export_all(const std::unordered_map<std::string, std::vector<std::set<u
     fii_export_html(image_groups, html_fn, filename_list1, check_dir1, filename_list2, check_dir2);
     std::string csv_fn = export_dir + prefix + "-identical.csv";
     fii_export_csv(image_groups, csv_fn, filename_list1, check_dir1, filename_list2, check_dir2);
+    std::string filelist_fn = export_dir + prefix + "-identical-filelist.txt";
+    fii_export_filelist(image_groups, filelist_fn, filename_list1, check_dir1, filename_list2, check_dir2);
+    std::string delete_filelist_fn = export_dir + prefix + "-identical-delete-filelist.txt";
+    fii_export_delete_filelist(image_groups, delete_filelist_fn, filename_list1, check_dir1, filename_list2, check_dir2);
 
-    std::cout << "Results written to \n"
-              << "  file://" << json_fn << std::endl
-      << "  file://" << html_fn << std::endl
-              << "  file://" << csv_fn << std::endl;
+    std::cout << "Results in " << export_dir << std::endl;
   } catch(std::exception &ex) {
     std::string json_fn = "identical.json";
     fii_export_json(image_groups, json_fn, filename_list1, check_dir1, filename_list2, check_dir2);

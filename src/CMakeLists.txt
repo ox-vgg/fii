@@ -17,8 +17,8 @@ configure_file (
   "${PROJECT_SOURCE_DIR}/fii_version.h"
   )
 
-IF(NOT DEFINED CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
+IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE "Release")
 ENDIF()
 
 find_package(Threads REQUIRED)
@@ -34,6 +34,7 @@ target_link_libraries(
  Threads::Threads OpenMP::OpenMP_CXX
 )
 
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 #add_executable(fii_inspect_img fii_inspect_img.cc)
 
 ## tests
